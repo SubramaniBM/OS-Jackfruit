@@ -100,16 +100,16 @@ sudo dmesg | tail -5
 ## 3. Demo Screenshots
 
 ### Screenshot 1 — Multi-container supervision
-![Multi-container](boilerplate/Screenshot1a.png)
-![Multi-container](boilerplate/Screenshot1b.png)
+<img width="737" height="470" alt="image" src="https://github.com/user-attachments/assets/63347569-6ab7-41fe-97dc-6753af1b2005" />
+<img width="1398" height="273" alt="image" src="https://github.com/user-attachments/assets/081e6337-5d67-4e6d-a29b-372fef71ff3b" />
 *Two containers alpha and beta running concurrently under one supervisor process*
 
 ### Screenshot 2 — Metadata tracking
-![Metadata](boilerplate/Screenshot1b.png)
+<img width="1398" height="273" alt="image" src="https://github.com/user-attachments/assets/4f6ff637-b006-47db-99f2-b48ae4f5d2df" />
 *Output of engine ps showing container IDs, host PIDs, and current states*
 
 ### Screenshot 3 — Bounded-buffer logging
-![Logging](boilerplate/Screenshot2.png)
+<img width="1430" height="555" alt="image" src="https://github.com/user-attachments/assets/700aac89-6dfc-480f-bc4d-0fbc16a905ae" />
 *Log file contents captured through the bounded-buffer logging pipeline*
 
 ### Screenshot 4 — CLI and IPC
