@@ -113,12 +113,11 @@ sudo dmesg | tail -5
 *Log file contents captured through the bounded-buffer logging pipeline*
 
 ### Screenshot 4 — CLI and IPC
-![CLI](boilerplate/Screenshot4.png)
-![CLI](boilerplate/Screentshot4.png)
+<img width="669" height="172" alt="image" src="https://github.com/user-attachments/assets/c995262a-af7e-4775-8da7-34baccd269dc" />
 *CLI stop command issued and supervisor responding, demonstrating UNIX domain socket IPC*
 
 ### Screenshot 5 — Soft-limit warning
-<img width="1314" height="324" alt="image" src="https://github.com/user-attachments/assets/06a60c49-1c4b-4dd0-b2b4-78b0599fed8a" />
+<img width="1314" height="72" alt="image" src="https://github.com/user-attachments/assets/789c68fe-df28-48ad-be96-ae7a4d1c95b8" />
 *dmesg showing SOFT LIMIT warning when container RSS exceeds soft threshold*
 
 ### Screenshot 6 — Hard-limit enforcement
