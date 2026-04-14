@@ -118,11 +118,11 @@ sudo dmesg | tail -5
 *CLI stop command issued and supervisor responding, demonstrating UNIX domain socket IPC*
 
 ### Screenshot 5 — Soft-limit warning
-![Soft limit](boilerplate/Screentshot5.png)
+<img width="1314" height="324" alt="image" src="https://github.com/user-attachments/assets/06a60c49-1c4b-4dd0-b2b4-78b0599fed8a" />
 *dmesg showing SOFT LIMIT warning when container RSS exceeds soft threshold*
 
 ### Screenshot 6 — Hard-limit enforcement
-![Hard limit](boilerplate/Screenshot6.png)
+<img width="1316" height="77" alt="image" src="https://github.com/user-attachments/assets/b8dae856-9d13-4a5c-b2c9-9085b57a4f59" />
 *dmesg showing container killed after exceeding hard limit, supervisor metadata updated to killed state*
 
 ### Screenshot 7 — Scheduling experiment
