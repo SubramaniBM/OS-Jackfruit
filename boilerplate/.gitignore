@@ -1,21 +1,16 @@
-# Ignore container root filesystems
-rootfs-*/
-rootfs-base/
-
-# Ignore compiled kernel modules and object files
+# Binaries
+engine
+memory_hog
+cpu_hog
 *.ko
 *.o
 *.mod
-*.mod.c
-modules.order
-Module.symvers
+*.order
+*.symvers
 
-# Ignore compiled C binaries
-engine
-hog
-memory_hog
-
-# Ignore logs and images
+# Logs and Sockets
 *.log
-images/
-*.png
+/tmp/jackfruit.sock
+
+# Rootfs (Too large for Git)
+rootfs-*/
