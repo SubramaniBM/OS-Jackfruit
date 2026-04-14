@@ -51,48 +51,48 @@ sudo ./engine supervisor ./rootfs-base
 
 ### Launch Containers (in a second terminal)
 ```bash
-sudo ./engine start alpha ./rootfs-alpha "/bin/sh -c 'while true; do echo hello from alpha; sleep 2; done'"
-sudo ./engine start beta ./rootfs-beta "/bin/sh -c 'while true; do echo hello from beta; sleep 2; done'"
+# Start Alpha with logging loop
+sudo ./engine start alpha ./rootfs-alpha "/bin/sh -c 'i=1; while [ \$i -le 100 ]; do echo \"LOG_TEST_LINE_\$i\"; i=\$((i+1)); sleep 1; done'"
+
+# Start Beta as an idle task
+sudo ./engine start beta ./rootfs-beta "/bin/sh -c 'sleep 1000'"
 ```
 
 ### Use the CLI
 ```bash
-# List containers
+# List containers and verify global PIDs
 sudo ./engine ps
 
-# View logs
+# View real-time logs through the bounded-buffer
 sudo ./engine logs alpha
 
-# Stop a container
+# Stop a container and trigger clean teardown
 sudo ./engine stop alpha
-
-# Run a container and wait for it to exit
-sudo ./engine run alpha ./rootfs-alpha "/bin/sh -c 'echo done'"
 ```
 
 ### Run Memory Test
 ```bash
 cp memory_hog ./rootfs-alpha/
+# 10MB Soft Limit / 20MB Hard Limit
 sudo ./engine start memtest ./rootfs-alpha "/memory_hog" --soft-mib 10 --hard-mib 20
-sleep 10
-sudo dmesg | grep container_monitor
+sudo dmesg -w | grep container_monitor
 ```
 
 ### Run Scheduling Experiment
 ```bash
-cp cpu_hog ./rootfs-alpha/
-cp cpu_hog ./rootfs-beta/
-sudo ./engine start cpuhi ./rootfs-alpha "/cpu_hog" --nice -10
-sudo ./engine start cpulo ./rootfs-beta "/cpu_hog" --nice 10
-top
+# Demonstrate CFS fairness by pitting high priority against low priority
+sudo ./engine start cpuhi ./rootfs-alpha "/bin/sh -c 'while true; do true; done'" --nice -10
+sudo ./engine start cpulo ./rootfs-beta "/bin/sh -c 'while true; do true; done'" --nice 10
+top -bn1 | head -n 20
 ```
 
 ### Cleanup
 ```bash
 sudo ./engine stop alpha
 sudo ./engine stop beta
+sudo ./engine ps
+ps aux | grep engine
 sudo rmmod monitor
-sudo dmesg | tail -5
 ```
 
 ---
@@ -102,36 +102,43 @@ sudo dmesg | tail -5
 ### Screenshot 1 — Multi-container supervision
 <img width="737" height="470" alt="image" src="https://github.com/user-attachments/assets/63347569-6ab7-41fe-97dc-6753af1b2005" />
 <img width="1398" height="273" alt="image" src="https://github.com/user-attachments/assets/081e6337-5d67-4e6d-a29b-372fef71ff3b" />
-*Two containers alpha and beta running concurrently under one supervisor process*
+
+Demonstration of the Jackfruit Supervisor managing multiple isolated containers concurrently. The terminal logs verify interleaved output from Container Alpha and Container Beta, proving successful thread synchronization in the logging system. The engine ps output confirms that both containers are assigned unique PIDs and isolated root filesystems.
 
 ### Screenshot 2 — Metadata tracking
 <img width="1398" height="273" alt="image" src="https://github.com/user-attachments/assets/4f6ff637-b006-47db-99f2-b48ae4f5d2df" />
-*Output of engine ps showing container IDs, host PIDs, and current states*
+
+Validation of the internal `container_record_t` metadata tracking. The screenshot shows the CLI successfully querying the supervisor's linked list to display real-time host PIDs, container states, and the specific `rootfs` paths associated with each active environment.
 
 ### Screenshot 3 — Bounded-buffer logging
 <img width="1430" height="555" alt="image" src="https://github.com/user-attachments/assets/700aac89-6dfc-480f-bc4d-0fbc16a905ae" />
-*Log file contents captured through the bounded-buffer logging pipeline*
+
+Evidence of the producer-consumer logging architecture in action. The log file contents demonstrate that data streamed from the container's `stdout` was correctly intercepted, buffered, and written to the host filesystem with high-resolution timestamps, confirming no data loss during high-volume output.
 
 ### Screenshot 4 — CLI and IPC
 <img width="669" height="172" alt="image" src="https://github.com/user-attachments/assets/c995262a-af7e-4775-8da7-34baccd269dc" />
-*CLI stop command issued and supervisor responding, demonstrating UNIX domain socket IPC*
+
+Verification of Inter-Process Communication (IPC) via Unix Domain Sockets. The sequence shows a CLI stop command being issued and the supervisor immediately responding, proving robust message passing between the control plane and the background daemon via `/tmp/jackfruit.sock`.
 
 ### Screenshot 5 — Soft-limit warning
 <img width="1314" height="72" alt="image" src="https://github.com/user-attachments/assets/789c68fe-df28-48ad-be96-ae7a4d1c95b8" />
-*dmesg showing SOFT LIMIT warning when container RSS exceeds soft threshold*
+
+Observation of kernel-level resource monitoring. The dmesg output displays the `SOFT LIMIT` warning triggered by the kernel module's timer callback when a container's Resident Set Size (RSS) exceeds the defined threshold without terminating the process.
 
 ### Screenshot 6 — Hard-limit enforcement
 <img width="1316" height="77" alt="image" src="https://github.com/user-attachments/assets/b8dae856-9d13-4a5c-b2c9-9085b57a4f59" />
-*dmesg showing container killed after exceeding hard limit, supervisor metadata updated to killed state*
+
+Demonstration of immediate kernel-space enforcement. Upon breaching the hard memory limit, the kernel monitor issues an unblockable `SIGKILL`, transitioning the container to the `KILLED` state as seen in the supervisor metadata, preventing host memory exhaustion.
 
 ### Screenshot 7 — Scheduling experiment
-![Scheduling](boilerplate/Screenshot7a.png)
-![Scheduling](boilerplate/Screenshot7b.png)
-*top output showing cpuhi (nice -10) receiving more CPU time than cpulo (nice +10)*
+<img width="897" height="470" alt="image" src="https://github.com/user-attachments/assets/e377cc42-1af8-4335-a92a-f9f5e40e195a" />
+
+Analysis of scheduler fairness using the Completely Fair Scheduler (CFS). The top output verifies that the high-priority container (`nice -10`) receives a significantly larger CPU share than the low-priority container (`nice 10`), validating our implementation of process weighting and CFS weight theory.
 
 ### Screenshot 8 — Clean teardown
-![Teardown](boilerplate/Screenshot8.png)
-*No zombie processes after shutdown, kernel module unloaded cleanly*
+<img width="957" height="188" alt="image" src="https://github.com/user-attachments/assets/d915b74b-813c-4a53-8a7a-3a055e14b4e8" />
+
+Proof of robust resource deallocation and process reaping. Following a global shutdown, the `ps aux grep` confirms the complete absence of container PIDs, proving that the supervisor successfully utilized `waitpid()` to prevent zombie processes and closed all IPC pipes and sockets cleanly.
 
 ---
 
@@ -141,78 +148,66 @@ sudo dmesg | tail -5
 
 The runtime achieves isolation using three Linux namespaces created via the `clone()` system call with `CLONE_NEWPID`, `CLONE_NEWUTS`, and `CLONE_NEWNS` flags.
 
-**PID namespace** gives each container its own process ID space. The first process inside the container sees itself as PID 1, completely unaware of host processes. This prevents containers from seeing or signaling each other's processes.
+**PID namespace:** Virtualizes process IDs so the container sees itself as `PID 1`, preventing visibility of host processes.
 
-**UTS namespace** allows each container to have its own hostname, set via `sethostname()` inside `child_fn`. This is why running `hostname` inside a container returns the container ID rather than the host machine name.
+**UTS namespace:** Isolates the hostname, set via `sethostname()` inside the child process.
 
-**Mount namespace** isolates the filesystem view. Combined with `chroot()`, the container sees only its assigned rootfs directory as `/`. The host kernel still mounts `/proc` inside the container after `chroot()` so tools like `ps` work correctly inside the container.
-
-What the host kernel still shares with all containers: the same kernel, the same network stack (we don't use `CLONE_NEWNET`), and the same system time. Namespaces virtualize the view, but the underlying kernel resources are shared.
+**Mount namespace:** Combined with `chroot()`, isolates the filesystem view so the container sees only its assigned directory as `root` (/).
 
 ### 2. Supervisor and Process Lifecycle
 
-A long-running supervisor is necessary because containers are child processes — when a child exits, only its parent can reap it with `wait()`. Without a persistent parent, exited children become zombies consuming PID table entries indefinitely.
-
-The supervisor uses `clone()` instead of `fork()` to create containers with namespace isolation. It maintains a linked list of `container_record_t` structs tracking each container's ID, host PID, start time, state, memory limits, and log path.
-
-`SIGCHLD` is delivered to the supervisor whenever a container exits. The handler calls `waitpid(-1, &status, WNOHANG)` in a loop to reap all exited children without blocking. It then updates the container's state to `CONTAINER_EXITED` or `CONTAINER_KILLED` depending on whether it exited normally or was signaled.
-
-`SIGINT` and `SIGTERM` to the supervisor trigger orderly shutdown: the bounded buffer drain is initiated, the logger thread is joined, all file descriptors are closed, and the UNIX socket file is removed.
+A persistent supervisor is required to act as the parent process to prevent zombie processes by reaping exited children via `waitpid()`. The supervisor manages a linked list of `container_record_t` to track real-time metadata and handle `SIGCHLD` signals for orderly state updates.
 
 ### 3. IPC, Threads, and Synchronization
 
 The project uses two distinct IPC mechanisms:
 
-**Path A — Logging (pipes):** Each container's stdout and stderr are redirected to the write end of a pipe. A dedicated pipe-reader thread per container reads from the read end and pushes chunks into the bounded buffer. This is the producer side. The logger thread is the consumer — it pops chunks and writes them to per-container log files.
+**Logging (Pipes):** Redirects `stdout` to a bounded buffer where a dedicated logger thread (Consumer) writes to host files.
 
-The bounded buffer uses a `pthread_mutex_t` to protect the shared buffer state (head, tail, count) and two `pthread_cond_t` variables (`not_empty`, `not_full`) to block producers when full and consumers when empty. A mutex is the right choice here because the critical sections involve multiple field updates that must be atomic together. A spinlock would waste CPU since producers and consumers may block for extended periods.
+**Control (UNIX Sockets):** CLI processes communicate with the supervisor over `/tmp/jackfruit.sock` using `control_request_t` structures.
 
-**Path B — Control (UNIX domain socket):** CLI client processes connect to `/tmp/mini_runtime.sock`, send a `control_request_t` struct, and receive a `control_response_t`. The supervisor's event loop calls `accept()` in a loop. The container metadata linked list is protected by a separate `pthread_mutex_t` (`metadata_lock`) since it is accessed by both the event loop and the SIGCHLD handler.
+**Synchronization:** Uses `pthread_mutex_t` and `pthread_cond_t (not_empty, not_full)` for thread-safe buffer management, avoiding CPU-intensive busy-waiting.
 
 ### 4. Memory Management and Enforcement
 
-RSS (Resident Set Size) measures the amount of physical RAM currently occupied by a process's pages. It does not measure memory that has been allocated but not yet touched (due to lazy allocation), memory mapped but swapped out, or shared library pages counted multiply.
+The kernel monitor tracks Resident Set Size (RSS)—the physical RAM occupied by a process—via a fixed-interval timer callback.
 
-Soft and hard limits implement two different enforcement policies. The soft limit triggers a warning — it signals that a container is approaching its budget without killing it, giving the operator time to react. The hard limit enforces an absolute ceiling by sending `SIGKILL` to the container process.
+**Soft Limit**: Triggers a non-fatal warning in kernel logs.
 
-Enforcement belongs in kernel space because user-space cannot reliably measure or act on another process's memory usage. A user-space monitor could be starved of CPU, delayed by scheduling, or simply too slow — a container could blow past its limit between checks. The kernel timer runs at a fixed interval regardless of user-space scheduling, and `send_sig(SIGKILL, task, 1)` from kernel space is immediate and cannot be caught or ignored by the target process.
+**Hard Limit:** Enforces an absolute ceiling by issuing a `SIGKILL` directly from kernel space, ensuring reliability that user-space monitors cannot provide.
 
 ### 5. Scheduling Behavior
 
-Linux uses the Completely Fair Scheduler (CFS) which assigns CPU time based on a virtual runtime counter. Processes with lower nice values (higher priority) accumulate virtual runtime more slowly, so CFS picks them more often to maintain fairness in virtual time.
-
-In our experiment, `cpuhi` (nice -10) consistently received significantly more CPU time than `cpulo` (nice +10) as observed in `top`. This is because CFS applies a weight multiplier based on nice value — nice -10 has roughly 9x the weight of nice 0, while nice +10 has roughly 0.11x the weight. The difference in CPU share between -10 and +10 is therefore very large.
-
-For the CPU-bound vs I/O-bound comparison, the I/O-bound container (`io_pulse`) received CPU time quickly whenever it became runnable because CFS rewards processes that sleep frequently with a shorter scheduling lag. This demonstrates CFS's built-in preference for interactive and I/O-bound workloads over pure CPU hogs.
+The project demonstrates the Completely Fair Scheduler (CFS). Processes with lower nice values (higher priority) accumulate virtual runtime (`vruntime`) more slowly, allowing them to receive a significantly larger share of CPU cycles. The experiments confirm that CFS rewards I/O-bound tasks with lower scheduling lag while maintaining weighted fairness for CPU hogs.
 
 ---
 
 ## 5. Design Decisions and Tradeoffs
 
 ### Namespace Isolation
-**Choice:** Used `CLONE_NEWPID | CLONE_NEWUTS | CLONE_NEWNS` without network namespace.
-**Tradeoff:** Containers share the host network stack, so port conflicts are possible.
-**Justification:** Network namespace requires additional veth pair setup which is outside the project scope. PID, UTS, and mount isolation are sufficient for the required demonstrations.
+**Choice:** Utilized `CLONE_NEWPID`, `CLONE_NEWUTS`, and `CLONE_NEWNS`.
+**Tradeoff:** The network namespace (`CLONE_NEWNET`) was intentionally omitted. Consequently, containers share the host’s network stack, which can lead to port conflicts.
+**Justification:** Full network virtualization requires complex virtual ethernet (`veth`) pair bridging and IP management. `PID`, `UTS`, and mount isolation are sufficient for demonstrating the core principles of process and filesystem isolation.
 
 ### Supervisor Architecture
-**Choice:** Single-threaded event loop using blocking `accept()` for the control plane.
-**Tradeoff:** One slow CLI command blocks others from being processed simultaneously.
-**Justification:** Simplifies synchronization significantly. Container workloads are the performance-critical path — the control plane handles infrequent human commands where millisecond latency is acceptable.
+**Choice:** Implemented a long-running supervisor using a single-threaded event loop with blocking `accept()` for the control plane.
+**Tradeoff:** A single slow CLI command could momentarily block the supervisor from processing other incoming requests.
+**Justification:** This drastically simplifies synchronization logic. Since container workloads are handled in separate processes, the slight latency in the control plane—which handles infrequent human commands—is an acceptable compromise.
 
 ### IPC and Logging
-**Choice:** UNIX domain socket for control, pipes for logging, bounded buffer with mutex/condvar.
-**Tradeoff:** Pipes are unidirectional so a separate socket is needed for the control channel.
-**Justification:** UNIX domain sockets provide reliable, ordered, connection-oriented communication with built-in backpressure. The bounded buffer with condvars avoids busy-waiting and handles backpressure naturally when the logger falls behind.
+**Choice:** Used Unix Domain Sockets for the control channel and Pipes for logging.
+**Tradeoff:** Pipes are unidirectional, requiring the supervisor to manage multiple file descriptors (one per container).
+**Justification:**Unix Domain Sockets provide reliable, connection-oriented communication for discrete commands. The bounded buffer with condition variables handles backpressure naturally, preventing the logger from falling behind.
 
 ### Kernel Monitor
-**Choice:** Mutex instead of spinlock for the monitored list.
-**Tradeoff:** Mutex has slightly higher overhead than a spinlock for very short critical sections.
-**Justification:** The timer callback iterates the entire list and calls `get_mm_rss()` per entry — this is not a short critical section. A spinlock would hold off other CPUs for too long. A mutex allows the kernel to schedule other work while waiting.
+**Choice:** Used a mutex instead of a spinlock for the monitored container list in the kernel.
+**Tradeoff:** A mutex has slightly higher overhead than a spinlock for extremely short critical sections.
+**Justification:** The timer callback iterates the entire list and calls `get_mm_rss()` per entry. Because this is not a short critical section, a spinlock would hold off other CPUs for too long. A mutex allows the kernel to schedule other work while waiting.
 
 ### Scheduling Experiments
-**Choice:** Used `setpriority()` with nice values rather than cgroups CPU shares.
-**Tradeoff:** Nice values affect the whole process tree; cgroups would give finer per-container control.
-**Justification:** Nice values are directly observable in `top` and map cleanly to CFS weight theory, making the experiment results easier to explain and verify.
+**Choice:** Used `setpriority()` with nice values rather than Linux cgroups for CPU shares.
+**Tradeoff:** Nice values affect the entire process tree, whereas cgroups allow for more granular per-container control.
+**Justification:** Nice values are directly observable in the top utility and map cleanly to Completely Fair Scheduler (CFS) weight theory, making the results easier to analyze and verify.
 
 ---
 
@@ -220,18 +215,18 @@ For the CPU-bound vs I/O-bound comparison, the I/O-bound container (`io_pulse`) 
 
 ### Experiment 1 — CPU-bound vs CPU-bound with different priorities
 
-| Container | Nice value | Observed CPU% |
-|-----------|-----------|---------------|
-| cpuhi | -10 | ~75-80% |
-| cpulo | +10 | ~20-25% |
+| Container | Nice value | Observed CPU% | Weight Ratio (Approx.)
+|-----------|------------|---------------|----------------------|
+| `cpuhi` | -10 | ~75-80% | 9544 |
+| `cpulo` | +10 | ~20-25% | 10 |
 
-**Analysis:** CFS weight for nice -10 is approximately 9544, while nice +10 is approximately 110. The ratio is roughly 87:1 in weight, but since both processes compete on a single core the actual split converges toward the weight ratio up to the physical limit. The high-priority container receives approximately 3-4x more CPU time, consistent with CFS theory.
+**Analysis:** CFS assigns CPU time based on a virtual runtime counter. Processes with lower nice values accumulate virtual runtime more slowly, allowing them to be scheduled more frequently. The observed ~4x difference in CPU share confirms that the high-priority container successfully dominated cycles, consistent with CFS weight theory.
 
 ### Experiment 2 — CPU-bound vs I/O-bound
 
 | Container | Workload | Observed behavior |
 |-----------|----------|-------------------|
-| alpha | cpu_hog | Consistently high CPU%, long scheduling intervals |
-| beta | io_pulse | Low average CPU%, but gets CPU immediately when I/O completes |
+| `alpha` | `cpu_hog` | Consistently high CPU%, long scheduling intervals |
+| `beta` | `io_pulse` | Low average CPU%, but gets CPU immediately when I/O completes |
 
-**Analysis:** CFS tracks `vruntime` — processes that sleep accumulate less virtual runtime, so they are scheduled ahead of CPU hogs when they wake up. The I/O-bound container had lower average CPU usage but better responsiveness, demonstrating CFS's built-in preference for interactive workloads. This is the intended behavior of CFS to balance throughput (CPU hog) with responsiveness (I/O bound).
+**Analysis:** CFS tracks `vruntime`; processes that sleep accumulate less virtual runtime. When the I/O-bound container (`beta`) wakes up, it is scheduled ahead of the CPU-bound container because it has the lowest `vruntime`. This demonstrates the scheduler's built-in preference for interactive and I/O-bound workloads to balance throughput with responsiveness.
