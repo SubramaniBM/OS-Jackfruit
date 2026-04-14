@@ -186,27 +186,37 @@ The project demonstrates the Completely Fair Scheduler (CFS). Processes with low
 
 ### Namespace Isolation
 **Choice:** Utilized `CLONE_NEWPID`, `CLONE_NEWUTS`, and `CLONE_NEWNS`.
+
 **Tradeoff:** The network namespace (`CLONE_NEWNET`) was intentionally omitted. Consequently, containers share the host’s network stack, which can lead to port conflicts.
+
 **Justification:** Full network virtualization requires complex virtual ethernet (`veth`) pair bridging and IP management. `PID`, `UTS`, and mount isolation are sufficient for demonstrating the core principles of process and filesystem isolation.
 
 ### Supervisor Architecture
 **Choice:** Implemented a long-running supervisor using a single-threaded event loop with blocking `accept()` for the control plane.
+
 **Tradeoff:** A single slow CLI command could momentarily block the supervisor from processing other incoming requests.
+
 **Justification:** This drastically simplifies synchronization logic. Since container workloads are handled in separate processes, the slight latency in the control plane—which handles infrequent human commands—is an acceptable compromise.
 
 ### IPC and Logging
 **Choice:** Used Unix Domain Sockets for the control channel and Pipes for logging.
+
 **Tradeoff:** Pipes are unidirectional, requiring the supervisor to manage multiple file descriptors (one per container).
+
 **Justification:**Unix Domain Sockets provide reliable, connection-oriented communication for discrete commands. The bounded buffer with condition variables handles backpressure naturally, preventing the logger from falling behind.
 
 ### Kernel Monitor
 **Choice:** Used a mutex instead of a spinlock for the monitored container list in the kernel.
+
 **Tradeoff:** A mutex has slightly higher overhead than a spinlock for extremely short critical sections.
+
 **Justification:** The timer callback iterates the entire list and calls `get_mm_rss()` per entry. Because this is not a short critical section, a spinlock would hold off other CPUs for too long. A mutex allows the kernel to schedule other work while waiting.
 
 ### Scheduling Experiments
 **Choice:** Used `setpriority()` with nice values rather than Linux cgroups for CPU shares.
+
 **Tradeoff:** Nice values affect the entire process tree, whereas cgroups allow for more granular per-container control.
+
 **Justification:** Nice values are directly observable in the top utility and map cleanly to Completely Fair Scheduler (CFS) weight theory, making the results easier to analyze and verify.
 
 ---
