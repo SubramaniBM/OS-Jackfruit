@@ -1,4 +1,4 @@
-# ?? OS-Jackfruit: Multi-Container Runtime
+# OS-Jackfruit: Multi-Container Runtime
 
 A lightweight, concurrent Linux container runtime built in C. It features a long-running supervisor, user-space container isolation via namespaces, concurrent bounded-buffer logging, and an integrated Linux Kernel Module (LKM) for strict memory limit enforcement.
 
@@ -10,7 +10,7 @@ A lightweight, concurrent Linux container runtime built in C. It features a long
 
 ---
 
-## ??? 1. Build, Load, and Run Instructions
+## 1. Build, Load, and Run Instructions
 
 ### Prerequisites
 *   **OS**: Ubuntu 22.04 or 24.04 VM
@@ -109,7 +109,7 @@ sudo rmmod monitor
 
 ---
 
-## ?? 2. Demo Screenshots
+## 2. Demo Screenshots
 
 ### Screenshot 1 — Multi-container supervision
 ![Screenshot 1a](./images/1a.png)
@@ -146,7 +146,7 @@ sudo rmmod monitor
 
 ---
 
-## ??? 3. Engineering Analysis & Internals
+## 3. Engineering Analysis & Internals
 
 ### 1. Isolation Mechanisms
 The runtime achieves isolation natively using the `clone()` system call paired with:
@@ -167,7 +167,7 @@ Instead of relying on standard cgroups, the runtime interacts with a custom Kern
 
 ---
 
-## ?? 4. Design Decisions & Tradeoffs
+## 4. Design Decisions & Tradeoffs
 
 1.  **Network Namespace Omitted:** 
     *   *Choice:* `CLONE_NEWNET` was intentionally left out. 
@@ -184,7 +184,7 @@ Instead of relying on standard cgroups, the runtime interacts with a custom Kern
 
 ---
 
-## ?? 5. CFS Scheduler Results
+## 5. CFS Scheduler Results
 
 **Experiment: CPU-bound vs CPU-bound with different priorities**
 | Container | Nice value | Observed CPU% | Weight Ratio (Approx.) |
