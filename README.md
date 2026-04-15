@@ -111,36 +111,36 @@ sudo rmmod monitor
 
 ## 2. Demo Screenshots
 
-### Screenshot 1 � Multi-container supervision
+### Screenshot 1 - Multi-container supervision
 ![Screenshot 1a](./images/1a.png)
 ![Screenshot 1b](./images/1b.png)
 > **Description:** The Jackfruit Supervisor managing multiple isolated containers concurrently. Output from Container Alpha and Container Beta is correctly interleaved, proving successful thread synchronization in the logging system. The `engine ps` output confirms unique global PIDs and states.
 
-### Screenshot 2 � Metadata tracking
+### Screenshot 2 - Metadata tracking
 ![Screenshot 2](./images/2.png)
 > **Description:** Validation of the internal `container_record_t` linked list/array. The CLI accurately queries the supervisor to display real-time host PIDs, states, and IDs.
 
-### Screenshot 3 � Bounded-buffer logging
+### Screenshot 3 - Bounded-buffer logging
 ![Screenshot 3](./images/3.png)
 > **Description:** The producer-consumer pipeline in action. Data streamed from the container's `stdout` pipeline is intercepted, buffered via shared memory (`mmap`), and cleanly written to the host filesystem.
 
-### Screenshot 4 � CLI and IPC
+### Screenshot 4 - CLI and IPC
 ![Screenshot 4](./images/4.png)
 > **Description:** Inter-Process Communication (IPC) via Unix Domain Sockets (`/tmp/jackfruit.sock`). A successful sequence of CLI requests (stop, ps) routing to the supervisor daemon.
 
-### Screenshot 5 � Soft-limit warning (Kernel Space)
+### Screenshot 5 - Soft-limit warning (Kernel Space)
 ![Screenshot 5](./images/5.png)
 > **Description:** The LKM timer callback dynamically tracking the Resident Set Size (RSS) of the container. It correctly triggers a non-fatal `SOFT LIMIT` memory warning in `dmesg`.
 
-### Screenshot 6 � Hard-limit enforcement (Kernel Space)
+### Screenshot 6 - Hard-limit enforcement (Kernel Space)
 ![Screenshot 6](./images/6.png)
 > **Description:** Direct kernel-space enforcement. Upon breaching the 20MB absolute ceiling, the LKM bypasses user-space and issues a `SIGKILL` directly to the `task_struct`, abruptly terminating the process to save host memory.
 
-### Screenshot 7 � Scheduling experiment
+### Screenshot 7 - Scheduling experiment
 ![Screenshot 7](./images/7.png)
 > **Description:** CFS fairness in action. The top output verifies that the high-priority container (`nice -10`) absorbs the vast majority of CPU cycles compared to the low-priority container (`nice 10`), validating our `setpriority()` system call integration.
 
-### Screenshot 8 � Clean teardown
+### Screenshot 8 - Clean teardown
 ![Screenshot 8](./images/8.png)
 > **Description:** Robust resource deallocation. When global shutdown occurs, `ps aux` verifies the complete absence of container zombie processes, proving successful `SIGCHLD` handling and `waitpid()` reaping.
 
@@ -186,7 +186,7 @@ Instead of relying on standard cgroups, the runtime interacts with a custom Kern
 
 ## 5. CFS Scheduler Results
 
-### Experiment 1 — CPU-bound vs CPU-bound with different priorities
+### Experiment 1 - CPU-bound vs CPU-bound with different priorities
 
 | Container | Nice value | Observed CPU% | Weight Ratio (Approx.) |
 |-----------|------------|---------------|------------------------|
@@ -195,7 +195,7 @@ Instead of relying on standard cgroups, the runtime interacts with a custom Kern
 
 **Analysis:** The Completely Fair Scheduler (CFS) allocates timeslices based on `vruntime` (virtual runtime). Tasks with lower nice values (higher priority, like `-10`) have their `vruntime` increment at a fraction of the actual physical time. This mathematically tricks the CFS tree into scheduling them far more often. The ~4x difference in CPU share confirms that the high-priority container successfully dominated cycles, consistent with CFS weight theory.
 
-### Experiment 2 — CPU-bound vs I/O-bound
+### Experiment 2 - CPU-bound vs I/O-bound
 
 | Container | Workload | Observed behavior |
 |-----------|----------|-------------------|
@@ -203,3 +203,4 @@ Instead of relying on standard cgroups, the runtime interacts with a custom Kern
 | `beta` | `io_pulse` | Low average CPU%, but gets CPU immediately when I/O completes |
 
 **Analysis:** CFS tracks `vruntime`; processes that sleep accumulate less virtual runtime. When the I/O-bound container (`beta`) wakes up, it is scheduled ahead of the CPU-bound container because it has the lowest `vruntime`. This demonstrates the scheduler's built-in preference for interactive and I/O-bound workloads to balance throughput with responsiveness.
+
