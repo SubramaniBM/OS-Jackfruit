@@ -100,43 +100,43 @@ sudo rmmod monitor
 ## 3. Demo Screenshots
 
 ### Screenshot 1 — Multi-container supervision
-<img width="737" height="470" alt="image" src="https://github.com/user-attachments/assets/63347569-6ab7-41fe-97dc-6753af1b2005" />
-<img width="1398" height="273" alt="image" src="https://github.com/user-attachments/assets/081e6337-5d67-4e6d-a29b-372fef71ff3b" />
+![Screenshot 1a](./images/1a.png)
+![Screenshot 1b](./images/1b.png)
 
 Demonstration of the Jackfruit Supervisor managing multiple isolated containers concurrently. The terminal logs verify interleaved output from Container Alpha and Container Beta, proving successful thread synchronization in the logging system. The engine ps output confirms that both containers are assigned unique PIDs and isolated root filesystems.
 
 ### Screenshot 2 — Metadata tracking
-<img width="1398" height="273" alt="image" src="https://github.com/user-attachments/assets/4f6ff637-b006-47db-99f2-b48ae4f5d2df" />
+![Screenshot 2](./images/2.png)
 
 Validation of the internal `container_record_t` metadata tracking. The screenshot shows the CLI successfully querying the supervisor's linked list to display real-time host PIDs, container states, and the specific `rootfs` paths associated with each active environment.
 
 ### Screenshot 3 — Bounded-buffer logging
-<img width="1430" height="555" alt="image" src="https://github.com/user-attachments/assets/700aac89-6dfc-480f-bc4d-0fbc16a905ae" />
+![Screenshot 3](./images/3.png)
 
 Evidence of the producer-consumer logging architecture in action. The log file contents demonstrate that data streamed from the container's `stdout` was correctly intercepted, buffered, and written to the host filesystem with high-resolution timestamps, confirming no data loss during high-volume output.
 
 ### Screenshot 4 — CLI and IPC
-<img width="669" height="172" alt="image" src="https://github.com/user-attachments/assets/c995262a-af7e-4775-8da7-34baccd269dc" />
+![Screenshot 4](./images/4.png)
 
 Verification of Inter-Process Communication (IPC) via Unix Domain Sockets. The sequence shows a CLI stop command being issued and the supervisor immediately responding, proving robust message passing between the control plane and the background daemon via `/tmp/jackfruit.sock`.
 
 ### Screenshot 5 — Soft-limit warning
-<img width="1314" height="72" alt="image" src="https://github.com/user-attachments/assets/789c68fe-df28-48ad-be96-ae7a4d1c95b8" />
+![Screenshot 5](./images/5.png)
 
 Observation of kernel-level resource monitoring. The dmesg output displays the `SOFT LIMIT` warning triggered by the kernel module's timer callback when a container's Resident Set Size (RSS) exceeds the defined threshold without terminating the process.
 
 ### Screenshot 6 — Hard-limit enforcement
-<img width="1316" height="77" alt="image" src="https://github.com/user-attachments/assets/b8dae856-9d13-4a5c-b2c9-9085b57a4f59" />
+![Screenshot 6](./images/6.png)
 
 Demonstration of immediate kernel-space enforcement. Upon breaching the hard memory limit, the kernel monitor issues an unblockable `SIGKILL`, transitioning the container to the `KILLED` state as seen in the supervisor metadata, preventing host memory exhaustion.
 
 ### Screenshot 7 — Scheduling experiment
-<img width="897" height="470" alt="image" src="https://github.com/user-attachments/assets/e377cc42-1af8-4335-a92a-f9f5e40e195a" />
+![Screenshot 7](./images/7.png)
 
 Analysis of scheduler fairness using the Completely Fair Scheduler (CFS). The top output verifies that the high-priority container (`nice -10`) receives a significantly larger CPU share than the low-priority container (`nice 10`), validating our implementation of process weighting and CFS weight theory.
 
 ### Screenshot 8 — Clean teardown
-<img width="957" height="188" alt="image" src="https://github.com/user-attachments/assets/d915b74b-813c-4a53-8a7a-3a055e14b4e8" />
+![Screenshot 8](./images/8.png)
 
 Proof of robust resource deallocation and process reaping. Following a global shutdown, the `ps aux grep` confirms the complete absence of container PIDs, proving that the supervisor successfully utilized `waitpid()` to prevent zombie processes and closed all IPC pipes and sockets cleanly.
 
