@@ -6,6 +6,7 @@
 #include <linux/uaccess.h>
 #include <linux/fs.h>
 #include <linux/pid.h>
+#include <linux/device.h>
 #include "monitor_ioctl.h"
 
 MODULE_LICENSE("GPL");
