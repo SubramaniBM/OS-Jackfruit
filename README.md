@@ -299,3 +299,27 @@ sudo rmmod monitor
 ```
 > **Explanation for Evaluator:** Sending a `stop` command triggers a `SIGKILL` on the Host PID. The supervisor safely traps the resulting `SIGCHLD`, runs `waitpid()` to fully reap the child processes (killing zombies), and executes an `ioctl()` to remove it from the Kernel Module's tracking pool.
 
+---
+
+### Phase 7: Troubleshooting and Clean Slate Recovery
+*If the VM reboots or if multiple supervisor instances are spawned accidentally, use these steps to reset the environment cleanly.*
+
+```bash
+# 1. Kill any floating 'engine supervisor' processes to prevent socket conflicts
+sudo pkill -f "engine supervisor"
+
+# 2. Cleanup stale IPC resources (sockets and shared memory)
+sudo rm -f /tmp/jackfruit.sock
+sudo rm -f /dev/shm/jackfruit_logger
+
+# 3. Clear container log files to restart logs from scratch
+sudo rm -f container_alpha.log container_beta.log
+
+# 4. Unload old kernel modules in case of failure to load
+sudo rmmod monitor
+
+# 5. Verify the environment is clean (should only return the grep command itself)
+ps aux | grep engine
+```
+> **Explanation for Evaluator:** Because the supervisor relies on a fixed UNIX Domain Socket (`/tmp/jackfruit.sock`) to communicate with the CLI, having multiple floating supervisor instances can cause race conditions or connection timeouts. These steps explicitly force-kill running supervisor instances and unlink global OS-level IPC resources so the daemon can start cleanly.
+
