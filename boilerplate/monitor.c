@@ -102,19 +102,43 @@ static struct file_operations fops = {
     .unlocked_ioctl = dev_ioctl,
 };
 
+static struct class *monitor_class;
+static struct device *monitor_device;
+
 static int __init monitor_init(void) {
     int i;
     for (i = 0; i < MAX_TARGETS; i++) targets[i].in_use = 0;
 
     major = register_chrdev(0, DEVICE_NAME, &fops);
+    if (major < 0) return major;
+
+    // Automatically create the /dev/container_monitor file
+    monitor_class = class_create(THIS_MODULE, DEVICE_NAME);
+    if (IS_ERR(monitor_class)) {
+        unregister_chrdev(major, DEVICE_NAME);
+        return PTR_ERR(monitor_class);
+    }
+
+    monitor_device = device_create(monitor_class, NULL, MKDEV(major, 0), NULL, DEVICE_NAME);
+    if (IS_ERR(monitor_device)) {
+        class_destroy(monitor_class);
+        unregister_chrdev(major, DEVICE_NAME);
+        return PTR_ERR(monitor_device);
+    }
+
     timer_setup(&monitor_timer, monitor_check, 0);
     mod_timer(&monitor_timer, jiffies + msecs_to_jiffies(1000));
-    pr_info("[%s] Loaded successfully.\n", DEVICE_NAME);
+    pr_info("[%s] Loaded successfully with major number %d.\n", DEVICE_NAME, major);
     return 0;
 }
 
 static void __exit monitor_exit(void) {
     del_timer(&monitor_timer);
+    
+    // Clean up the device file and class
+    device_destroy(monitor_class, MKDEV(major, 0));
+    class_destroy(monitor_class);
+    
     unregister_chrdev(major, DEVICE_NAME);
 }
 
