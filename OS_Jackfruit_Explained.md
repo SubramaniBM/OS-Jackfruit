@@ -558,7 +558,7 @@ top -bn1 | head -n 20
 |---|---|---|
 | **Network isolation** | `CLONE_NEWNET` omitted | Containers share host IP stack — simpler to implement, but no real network isolation |
 | **Control IPC** | Single-threaded blocking `accept()` on UNIX socket | Simple synchronization; slight risk of stall if a client hangs |
-| **CPU priority** | `setpriority()` / nice values | Less strict than cgroup CPU quotas, but maps directly to CFS weights and is easy to observe in `top` |
+| **CPU priority** | `setpriority()` / nice values (range: -20 to 19) | Less strict than cgroup CPU quotas, but maps directly to CFS weights and is easy to observe in `top`. Values range from -20 (highest priority) to 19 (lowest priority). |
 | **Memory enforcement** | Custom LKM with 1-second `mod_timer` | No user-space polling needed; direct kernel `send_sig`; but 1-second granularity means a process could exceed limits momentarily |
 | **Spinlock in LKM** | `DEFINE_SPINLOCK` | Ultra-low latency in interrupt/timer context; busy-waits CPU on contention (acceptable for very short critical sections) |
 | **Logging pipeline** | Shared-memory ring buffer via `mmap` + POSIX cond vars | Zero-copy between producer and consumer; safe for concurrent access; avoids busy-waiting |

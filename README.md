@@ -204,3 +204,98 @@ Instead of relying on standard cgroups, the runtime interacts with a custom Kern
 
 **Analysis:** CFS tracks `vruntime`; processes that sleep accumulate less virtual runtime. When the I/O-bound container (`beta`) wakes up, it is scheduled ahead of the CPU-bound container because it has the lowest `vruntime`. This demonstrates the scheduler's built-in preference for interactive and I/O-bound workloads to balance throughput with responsiveness.
 
+---
+
+## 6. Evaluator Demonstration Guide
+
+This section is a step-by-step script for presenting the core features of OS-Jackfruit, complete with explanations of *why* the system behaves the way it does during the demo.
+
+### Phase 1: Build & Environment Setup
+*Compiling components, setting up the isolated rootfs, and loading the Kernel Module.*
+
+```bash
+# 1. Compile the project
+cd boilerplate
+make
+
+# 2. Prepare isolated root filesystems (chroot jails)
+mkdir rootfs-base
+tar -xzf alpine-minirootfs-3.20.3-x86_64.tar.gz -C rootfs-base
+cp -a ./rootfs-base ./rootfs-alpha
+cp -a ./rootfs-base ./rootfs-beta
+
+# 3. Load the Kernel Module
+sudo insmod monitor.ko
+ls -l /dev/container_monitor
+```
+> **Explanation for Evaluator:** The `cp -a` cleanly duplicates the root filesystem for isolation. Inside the container, `chroot()` jails the process. `insmod` injects the memory-monitor into kernel space, exposing the `/dev/container_monitor` character device which the supervisor uses for `ioctl()` communications.
+
+### Phase 2: Supervisor & Isolation Lifecycle
+*Starting the daemon, launching a container, and proving namespace isolation.*
+
+```bash
+# 1. Start the Supervisor (Terminal 1 - Background Daemon)
+sudo ./engine supervisor ./rootfs-base
+
+# 2. Start Container Alpha (Terminal 2 - CLI Client)
+sudo ./engine start alpha ./rootfs-alpha "/bin/sh -c 'while true; do echo \"Hello from Alpha\"; sleep 1; done'"
+
+# 3. List Active Containers
+sudo ./engine ps
+```
+> **Explanation for Evaluator:** The supervisor listens on a UNIX Socket for CLI commands. Spawning the container uses `clone()` with `CLONE_NEWPID`, `CLONE_NEWUTS`, and `CLONE_NEWNS`. The process thinks it is `PID 1` internally, but `ps` reveals its true Host PID.
+
+### Phase 3: Bounded-Buffer Logging
+*Proving safe IPC and concurrency control.*
+
+```bash
+# View real-time logs securely pulled from shared memory
+sudo ./engine logs alpha
+```
+> **Explanation for Evaluator:** Container `stdout` routes to a pipe. A Producer thread pushes the logs into a `mmap` shared-memory Ring Buffer, and a Consumer writes it to disk. We use `pthread_mutex_t` and `pthread_cond_t` (Condition Variables) so threads sleep instead of busy-waiting when the buffer is empty or full.
+
+### Phase 4: Kernel Memory Monitoring (Soft & Hard Limits)
+*Using `memory_hog` to trigger Kernel SIGKILL.*
+
+```bash
+# 1. Inject the memory hog into the container's filesystem
+cp memory_hog ./rootfs-alpha/
+
+# 2. Start container with 10MB Soft and 20MB Hard limits
+sudo ./engine start memtest ./rootfs-alpha "/memory_hog" --soft-mib 10 --hard-mib 20
+
+# 3. Watch real-time kernel logs
+sudo dmesg -w
+```
+> **Explanation for Evaluator:** `memory_hog` allocates memory using `memset()`, triggering Demand Paging so Resident Set Size (RSS) balloons. Our Kernel Module's 1-second timer checks `get_mm_rss()`. Once it passes 10MB, it issues a Soft Limit warning. Once it hits 20MB, it bypasses user-space entirely and issues a kernel-level `send_sig(SIGKILL)` directly to the task.
+
+### Phase 5: CFS Scheduler Fairness
+*Demonstrating CFS CPU allocation based on priorities.*
+
+```bash
+# 1. Launch identical infinite loops with different priorities
+sudo ./engine start cpuhi ./rootfs-alpha "/bin/sh -c 'while true; do true; done'" --nice -10
+sudo ./engine start cpulo ./rootfs-beta "/bin/sh -c 'while true; do true; done'" --nice 10
+
+# 2. Open process monitor
+top -bn1 | head -n 20
+```
+> **Explanation for Evaluator:** `cpuhi` receives drastically more CPU time than `cpulo`. This demonstrates Linux's Completely Fair Scheduler (CFS). The high-priority task has a lower `nice` value, meaning its `vruntime` grows much slower, leading CFS to select it more frequently.
+
+### Phase 6: Clean Teardown
+*Terminating the system with zero zombies leaked.*
+
+```bash
+# 1. Stop all containers cleanly
+sudo ./engine stop alpha
+sudo ./engine stop cpuhi
+sudo ./engine stop cpulo
+
+# 2. Verify no orphan/zombie processes remain
+ps aux | grep engine
+
+# 3. Shutdown (Ctrl+C Supervisor in Terminal 1) and remove module
+sudo rmmod monitor
+```
+> **Explanation for Evaluator:** Sending a `stop` command triggers a `SIGKILL` on the Host PID. The supervisor safely traps the resulting `SIGCHLD`, runs `waitpid()` to fully reap the child processes (killing zombies), and executes an `ioctl()` to remove it from the Kernel Module's tracking pool.
+
